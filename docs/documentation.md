@@ -38,18 +38,122 @@ Note: These properties will likely be deprecated in favor of global css variable
 * `nav-text-color` - Set th color of hover on navigation links [Expected Bootstrap value: `$grey`]
 
 ### Library API
+
+OpenAPI Explorer provides JavaScript APIs to programmatically control its behavior:
+
 * `async loadSpec(spec)` - Load a spec from an object rather than looking it up from a remote url.
   * example: `await document.getElementsByTagName('openapi-explorer')[0].loadSpec(apiSpecificationObject);`
 * `setAuthenticationConfiguration(securitySchemeId, { token, clientId, redirectUri })` - Set a token for methods that require security for a particular security scheme id.
   * If the securityScheme id was `auth` and the `type` of that scheme was basic: `setAuthenticationConfiguration('auth', { token: 'user:password' });`
-  
-#### OAuth configuration
-You can use the `setAuthenticationConfiguration` with OAuth to fetch a user access token for the API.
-* Set the OAuth configuration: `setAuthenticationConfiguration('auth', { clientId: 'CLIENT_ID' });`.
+
+#### Authentication Configuration
+
+OpenAPI Explorer provides comprehensive support for various authentication mechanisms defined in your OpenAPI specification.
+##### OAuth Configuration
+You can use the `setAuthenticationConfiguration` with OAuth to fetch a user access token for the API:
+
+* Set the OAuth configuration: `setAuthenticationConfiguration('auth', { clientId: 'CLIENT_ID' });`
 
 [Optional] If the redirect location has to be different location than where the OpenAPI Explorer is located:
-* The `redirectUri` in the `setAuthenticationConfiguration` options object to the temporary location that works as a redirect.
-* At this location import `<openapi-explorer-oauth-handler />` from this library.
+* Set the `redirectUri` in the `setAuthenticationConfiguration` options object to the temporary location that works as a redirect
+* At this location import `<openapi-explorer-oauth-handler />` from this library
+
+##### Authentication Types
+
+Here are examples for common authentication types:
+
+**API Key Authentication**
+
+```javascript
+// Set API key in header
+apiExplorer.setAuthenticationConfiguration('ApiKeyAuth', {
+  token: 'your-api-key-here'
+});
+```
+
+**OAuth2 Authentication**
+
+```javascript
+// Set OAuth2 token
+apiExplorer.setAuthenticationConfiguration('OAuth2Auth', {
+  token: 'your-oauth2-token'
+});
+```
+
+**Basic Authentication**
+
+```javascript
+// Set Basic Auth credentials
+apiExplorer.setAuthenticationConfiguration('BasicAuth', {
+  username: 'user',
+  password: 'password'
+});
+// Or using the token format
+apiExplorer.setAuthenticationConfiguration('BasicAuth', {
+  token: 'user:password'
+});
+```
+
+##### Implementing Persistent Authentication
+
+For users migrating from RapiDoc where the `persist-auth` attribute is used to automatically store credentials in localStorage, here's how to implement equivalent functionality with OpenAPI Explorer:
+
+```javascript
+document.addEventListener('DOMContentLoaded', function() {
+  const apiExplorer = document.getElementById('openapi-explorer');
+  
+  // Initialize auth from localStorage on page load
+  function loadSavedAuth() {
+    const savedAuth = localStorage.getItem('openapi-explorer-auth');
+    if (savedAuth) {
+      try {
+        const authData = JSON.parse(savedAuth);
+        Object.keys(authData).forEach(schemeName => {
+          apiExplorer.setAuthenticationConfiguration(schemeName, authData[schemeName]);
+        });
+      } catch (error) {
+        console.error('Error loading saved authentication');
+        localStorage.removeItem('openapi-explorer-auth');
+      }
+    }
+  }
+  
+  // Listen for authentication responses
+  apiExplorer.addEventListener('response', function(event) {
+    const detail = event.detail;
+    
+    // Customize this logic for your auth endpoints
+    if (detail && detail.request.url && detail.request.url.includes('/auth/')) {
+      try {
+        const responseData = JSON.parse(detail.response.body);
+        
+        if (responseData && responseData.token) {
+          // Update the explorer
+          apiExplorer.setAuthenticationConfiguration('ApiKeyAuth', {
+            token: responseData.token
+          });
+          
+          // Save to localStorage
+          const authData = JSON.parse(localStorage.getItem('openapi-explorer-auth') || '{}');
+          authData['ApiKeyAuth'] = { token: responseData.token };
+          localStorage.setItem('openapi-explorer-auth', JSON.stringify(authData));
+        }
+      } catch (error) {
+        console.error('Error processing auth response');
+      }
+    }
+  });
+  
+  // Load authentication on startup
+  loadSavedAuth();
+});
+```
+
+##### Security Considerations
+
+Be aware that JavaScript-based storage is vulnerable to XSS attacks
+
+
 
 ### Events
 * `@spec-loaded` - Event trigger after the specification is loaded. Can be used to modify the spec including updating values.
